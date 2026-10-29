@@ -94,7 +94,7 @@ How to review:
 - Use the file path from the diff header and the line number in the new file. If you cannot determine the line number, use "-".
 - If the diff contains no violations, do not invent any.
 
-Your entire response must be a single JSON object and nothing else: no markdown, no headings, no checkmarks, no code fences, no summary, no text before or after. Your first character must be "{" and your last character must be "}". Use exactly this shape:
+Deliver your verdict by calling the report_design_qa tool. Do not write a prose summary. The tool input must have exactly this shape:
 {
   "pass": true or false,
   "findings": [
@@ -114,6 +114,33 @@ ${diff}`;
 // ALREADY WIRED — calls Claude, checks for API errors, and parses
 // the JSON response. You shouldn't need to touch this function.
 // ============================================================
+// Forcing this tool call makes the API return the verdict as structured JSON,
+// so we never depend on the model formatting free text correctly.
+const REPORT_TOOL = {
+  name: "report_design_qa",
+  description: "Report the design QA verdict for the pull request diff.",
+  input_schema: {
+    type: "object",
+    properties: {
+      pass: { type: "boolean" },
+      findings: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            file: { type: "string" },
+            line: { type: "string" },
+            issue: { type: "string" },
+            reasoning: { type: "string" },
+          },
+          required: ["file", "line", "issue", "reasoning"],
+        },
+      },
+    },
+    required: ["pass", "findings"],
+  },
+};
+
 async function checkDesignCompliance(diff, manifest) {
   const prompt = buildPrompt(diff, manifest);
 
@@ -127,6 +154,8 @@ async function checkDesignCompliance(diff, manifest) {
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: 4096,
+      tools: [REPORT_TOOL],
+      tool_choice: { type: "tool", name: REPORT_TOOL.name },
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -146,7 +175,17 @@ async function checkDesignCompliance(diff, manifest) {
     };
   }
 
-  const text = data.content?.[0]?.text ?? "";
+  const toolInput = data.content?.find((b) => b.type === "tool_use")?.input;
+  if (toolInput && typeof toolInput === "object") {
+    const findings = Array.isArray(toolInput.findings) ? toolInput.findings : [];
+    return { pass: toolInput.pass === true && findings.length === 0, findings };
+  }
+
+  // Fallback: no tool call came back, so try to pull JSON out of the text.
+  const text = data.content?.find((b) => b.type === "text")?.text ?? "";
+  if (data.stop_reason === "max_tokens") {
+    console.error("Claude's response was truncated (max_tokens reached).");
+  }
 
   try {
     // Models sometimes wrap the JSON in fences or prose; take the outermost {...}.

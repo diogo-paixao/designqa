@@ -3,19 +3,35 @@
   "components": {
     "Button": {
       "import": "@/components/ui/button",
-      "approvedVariants": ["default", "outline"],
+      "approvedVariants": [
+        "default",
+        "outline"
+      ],
       "deprecatedVariants": {
         "ghost": "Deprecated as of this project's design system. Use 'outline' instead."
       },
-      "approvedSizes": ["default", "sm", "lg"]
+      "approvedSizes": [
+        "default",
+        "sm",
+        "lg"
+      ]
     },
     "Card": {
       "import": "@/components/ui/card",
-      "subcomponents": ["CardHeader", "CardTitle", "CardDescription", "CardContent"]
+      "subcomponents": [
+        "CardHeader",
+        "CardTitle",
+        "CardDescription",
+        "CardContent"
+      ]
     },
     "Badge": {
       "import": "@/components/ui/badge",
-      "approvedVariants": ["default", "secondary", "outline"]
+      "approvedVariants": [
+        "default",
+        "secondary",
+        "outline"
+      ]
     }
   },
   "rules": [
@@ -25,8 +41,16 @@
     "Do not use deprecated component variants. See deprecatedVariants above.",
     "Do not use max-w-xs, max-w-sm, max-w-md, max-w-lg, or max-w-xl — these collide with the approved spacing scale tokens and silently resolve to spacing values instead of container widths. Use a numeric utility (e.g. max-w-96) or a size outside that range (max-w-2xl+) instead."
   ],
-  "accessibilityRules": [],
-  "responsiveRules": [],
+  "accessibilityRules": [
+    "verify if contrast level on buttons must respect the WCAG",
+    "also check other elements on the page on a secondary level."
+  ],
+  "responsiveRules": [
+    "in mobile sizes the screen should not overlap to the side margins",
+    "multi col grids must respect a stacking rule",
+    "fixed widths are forbidden unless its a relative scale, for example viewports",
+    "scales should also work with smaller viewport widths, we must respect the spacing scales."
+  ],
   "spacingScale": {
     "xs": "0.5rem",
     "sm": "1rem",

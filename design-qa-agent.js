@@ -78,6 +78,31 @@ function readManifest() {
 //   }
 // If there are no issues, "pass" should be true and "findings" empty.
 // ============================================================
+// Reduce a unified diff to only the lines the PR adds, each tagged with its
+// line number in the new file. Removed and context lines are dropped so the
+// model cannot flag code the PR deletes or leaves untouched.
+function addedLinesOnly(diff) {
+  const out = [];
+  let file = null;
+  let line = 0;
+  for (const raw of diff.split("\n")) {
+    if (raw.startsWith("diff --git ")) {
+      file = null;
+    } else if (raw.startsWith("+++ ")) {
+      file = raw.slice(4).replace(/^b\//, "");
+      if (file !== "/dev/null") out.push(`\nFile: ${file}`);
+    } else if (raw.startsWith("@@")) {
+      line = parseInt(/\+(\d+)/.exec(raw)?.[1] ?? "0", 10);
+    } else if (file && raw.startsWith("+")) {
+      out.push(`${line}: ${raw.slice(1)}`);
+      line++;
+    } else if (file && raw.startsWith(" ")) {
+      line++;
+    }
+  }
+  return out.join("\n");
+}
+
 function buildPrompt(diff, manifest) {
   return `You are a design QA reviewer. Check a pull request diff against the project's component manifest.
 
@@ -88,10 +113,10 @@ What counts as an issue:
 - Nothing else. Do not report personal style preferences, general best practices, or anything the manifest does not cover.
 
 How to review:
-- Only evaluate lines added by the diff (lines starting with "+"). Ignore removed lines and unchanged context lines.
+- You are given only the lines this PR adds. Evaluate those and nothing else. Do not report text that appears only in the manifest (for example the sample values quoted in its rules).
 - Go through the manifest rule by rule and check the added lines against each one.
 - For every issue, name the specific manifest rule or entry it breaks and explain how the added line violates it.
-- Use the file path from the diff header and the line number in the new file. If you cannot determine the line number, use "-".
+- Use the file path from the "File:" header and the line number printed before the code.
 - If the diff contains no violations, do not invent any.
 
 Deliver your verdict by calling the report_design_qa tool. Do not write a prose summary. The tool input must have exactly this shape:
@@ -106,8 +131,8 @@ Deliver your verdict by calling the report_design_qa tool. Do not write a prose 
 Manifest:
 ${manifest}
 
-Diff:
-${diff}`;
+Added lines (only lines this PR adds, shown as "<line number in new file>: <code>" under each file):
+${addedLinesOnly(diff)}`;
 }
 
 // ============================================================

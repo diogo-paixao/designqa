@@ -63,8 +63,9 @@ function readManifest() {
 // Write a prompt that asks Claude to compare the diff against the
 // manifest and decide pass/fail. Things worth including:
 //   - Reference the manifest explicitly, don't just say "the design system"
-//   - Say what counts as an issue (off-system components, hardcoded
-//     colors, arbitrary spacing, deprecated variants)
+//   - Say what counts as an issue: breaking a rule in the manifest,
+//     and nothing else. Then adding a rule to the manifest is enough
+//     to start checking it, with no change to this prompt
 //   - Ask for structured reasoning, not just a verdict
 //
 // IMPORTANT: whatever you ask for, it must come back as valid JSON in

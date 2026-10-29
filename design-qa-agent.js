@@ -91,7 +91,7 @@ How to review:
 - Use the file path from the diff header and the line number in the new file. If you cannot determine the line number, use "-".
 - If the diff contains no violations, do not invent any.
 
-Respond with valid JSON only: no markdown, no code fences, no text before or after. Use exactly this shape:
+Your entire response must be a single JSON object and nothing else: no markdown, no headings, no checkmarks, no code fences, no summary, no text before or after. Your first character must be "{" and your last character must be "}". Use exactly this shape:
 {
   "pass": true or false,
   "findings": [
@@ -148,8 +148,11 @@ async function checkDesignCompliance(diff, manifest) {
     const text = data.content?.[0]?.text ?? "";
 
     try {
-        const cleaned = text.replace(/```json\n?|```\n?/g, "").trim();
-        const result = JSON.parse(cleaned);
+        // Models sometimes wrap the JSON in fences or prose; take the outermost {...}.
+        const start = text.indexOf("{");
+        const end = text.lastIndexOf("}");
+        if (start === -1 || end <= start) throw new Error("No JSON object found in response");
+        const result = JSON.parse(text.slice(start, end + 1));
         return {
             pass: result.pass === true,
             findings: Array.isArray(result.findings) ? result.findings : [],

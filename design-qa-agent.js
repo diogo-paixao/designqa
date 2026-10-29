@@ -111,6 +111,7 @@ The manifest below is the single source of truth for what is on-system. Read eve
 What counts as an issue:
 - A change in the diff that breaks a rule in the manifest, or uses something the manifest does not approve (including deprecated variants, unapproved variants or sizes, and values outside the spacing scale).
 - Nothing else. Do not report personal style preferences, general best practices, or anything the manifest does not cover.
+- Do not judge whether a class name is valid Tailwind or suggest alternative utilities. The manifest is the only authority. Utilities built from a spacingScale key (for example pt-xs, gap-md, py-lg, px-sm, mt-xl) are approved and valid by definition: this project defines them as theme tokens. Only report spacing that is NOT one of those keys, such as arbitrary brackets (py-[37px]) or numeric values outside the scale.
 
 How to review:
 - You are given only the lines this PR adds. Evaluate those and nothing else. Do not report text that appears only in the manifest (for example the sample values quoted in its rules).

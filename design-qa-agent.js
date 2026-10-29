@@ -26,28 +26,31 @@ const CLAUDE_MODEL = "claude-haiku-4-5-20251001"; // swap for 'claude-sonnet-5' 
 // ALREADY WIRED — fetch the PR diff
 // ============================================================
 async function fetchDiff() {
-    const repo = process.env.GITHUB_REPOSITORY; // e.g. "your-username/your-repo"
-    const prNumber = process.env.PR_NUMBER;
-    const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY; // e.g. "your-username/your-repo"
+  const prNumber = process.env.PR_NUMBER;
+  const token = process.env.GITHUB_TOKEN;
 
-    const res = await fetch(`https://api.github.com/repos/${repo}/pulls/${prNumber}`, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/vnd.github.v3.diff",
-        },
-    });
-
-    if (!res.ok) {
-        throw new Error(`Failed to fetch diff: ${res.status} ${res.statusText}`);
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/pulls/${prNumber}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.v3.diff",
+      },
     }
-    return res.text();
+  );
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch diff: ${res.status} ${res.statusText}`);
+  }
+  return res.text();
 }
 
 // ============================================================
 // ALREADY WIRED — read the component manifest
 // ============================================================
 function readManifest() {
-    return fs.readFileSync(PLACEHOLDER_MANIFEST_PATH, "utf-8");
+  return fs.readFileSync(PLACEHOLDER_MANIFEST_PATH, "utf-8");
 }
 
 // ============================================================
@@ -76,7 +79,7 @@ function readManifest() {
 // If there are no issues, "pass" should be true and "findings" empty.
 // ============================================================
 function buildPrompt(diff, manifest) {
-    return `You are a design QA reviewer. Check a pull request diff against the project's component manifest.
+  return `You are a design QA reviewer. Check a pull request diff against the project's component manifest.
 
 The manifest below is the single source of truth for what is on-system. Read every section of it: components (approved variants, approved sizes, deprecated variants), rules, accessibilityRules, responsiveRules, and spacingScale. Any rule added to the manifest applies, even if it is not mentioned in these instructions.
 
@@ -112,109 +115,107 @@ ${diff}`;
 // the JSON response. You shouldn't need to touch this function.
 // ============================================================
 async function checkDesignCompliance(diff, manifest) {
-    const prompt = buildPrompt(diff, manifest);
+  const prompt = buildPrompt(diff, manifest);
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-            "x-api-key": process.env.ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        body: JSON.stringify({
-            model: CLAUDE_MODEL,
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }],
-        }),
-    });
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (!response.ok) {
-        console.error(`Anthropic API error (status ${response.status}):`, JSON.stringify(data, null, 2));
-        return {
-            pass: false,
-            findings: [
-                {
-                    file: "-",
-                    line: "-",
-                    issue: "API call failed",
-                    reasoning: data?.error?.message || `HTTP ${response.status}`,
-                },
-            ],
-        };
-    }
+  if (!response.ok) {
+    console.error(`Anthropic API error (status ${response.status}):`, JSON.stringify(data, null, 2));
+    return {
+      pass: false,
+      findings: [{
+        file: "-",
+        line: "-",
+        issue: "API call failed",
+        reasoning: data?.error?.message || `HTTP ${response.status}`,
+      }],
+    };
+  }
 
-    const text = data.content?.[0]?.text ?? "";
+  const text = data.content?.[0]?.text ?? "";
 
-    try {
-        // Models sometimes wrap the JSON in fences or prose; take the outermost {...}.
-        const start = text.indexOf("{");
-        const end = text.lastIndexOf("}");
-        if (start === -1 || end <= start) throw new Error("No JSON object found in response");
-        const result = JSON.parse(text.slice(start, end + 1));
-        return {
-            pass: result.pass === true,
-            findings: Array.isArray(result.findings) ? result.findings : [],
-        };
-    } catch (err) {
-        console.error("Failed to parse Claude's response as JSON:", text);
-        return {
-            pass: false,
-            findings: [
-                { file: "-", line: "-", issue: "Agent response could not be parsed", reasoning: text.slice(0, 300) },
-            ],
-        };
-    }
+  try {
+    // Models sometimes wrap the JSON in fences or prose; take the outermost {...}.
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) throw new Error("No JSON object found in response");
+    const result = JSON.parse(text.slice(start, end + 1));
+    return {
+      pass: result.pass === true,
+      findings: Array.isArray(result.findings) ? result.findings : [],
+    };
+  } catch (err) {
+    console.error("Failed to parse Claude's response as JSON:", text);
+    return {
+      pass: false,
+      findings: [
+        { file: "-", line: "-", issue: "Agent response could not be parsed", reasoning: text.slice(0, 300) },
+      ],
+    };
+  }
 }
+
 
 // ============================================================
 // ALREADY WIRED — post the result back to the PR
 // ============================================================
 async function postResult(result) {
-    const repo = process.env.GITHUB_REPOSITORY;
-    const prNumber = process.env.PR_NUMBER;
-    const token = process.env.GITHUB_TOKEN;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const prNumber = process.env.PR_NUMBER;
+  const token = process.env.GITHUB_TOKEN;
 
-    const body =
-        result.pass ?
-            `Design QA agent: no issues found.`
-        :   `Design QA agent found issues:\n\n${result.findings
-                .map((f) => `- **${f.file}:${f.line}** — ${f.issue}\n  ${f.reasoning}`)
-                .join("\n")}`;
+  const body = result.pass
+    ? `Design QA agent: no issues found.`
+    : `Design QA agent found issues:\n\n${result.findings
+        .map((f) => `- **${f.file}:${f.line}** — ${f.issue}\n  ${f.reasoning}`)
+        .join("\n")}`;
 
-    const commentRes = await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments`, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/vnd.github.v3+json",
-            "content-type": "application/json",
-        },
-        body: JSON.stringify({ body }),
-    });
+  const commentRes = await fetch(`https://api.github.com/repos/${repo}/issues/${prNumber}/comments`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github.v3+json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ body }),
+  });
 
-    if (!commentRes.ok) {
-        const errText = await commentRes.text();
-        console.error(`Failed to post comment (status ${commentRes.status}):`, errText);
-    } else {
-        console.log("Comment posted successfully.");
-    }
+  if (!commentRes.ok) {
+    const errText = await commentRes.text();
+    console.error(`Failed to post comment (status ${commentRes.status}):`, errText);
+  } else {
+    console.log("Comment posted successfully.");
+  }
 
-    // Non-zero exit makes the GitHub Action report a failed check.
-    process.exit(result.pass ? 0 : 1);
+  // Non-zero exit makes the GitHub Action report a failed check.
+  process.exit(result.pass ? 0 : 1);
 }
 
 // ============================================================
 // ALREADY WIRED — run it
 // ============================================================
 (async function main() {
-    try {
-        const diff = await fetchDiff();
-        const manifest = readManifest();
-        const result = await checkDesignCompliance(diff, manifest);
-        await postResult(result);
-    } catch (err) {
-        console.error("Design QA agent failed to run:", err);
-        process.exit(1);
-    }
+  try {
+    const diff = await fetchDiff();
+    const manifest = readManifest();
+    const result = await checkDesignCompliance(diff, manifest);
+    await postResult(result);
+  } catch (err) {
+    console.error("Design QA agent failed to run:", err);
+    process.exit(1);
+  }
 })();
